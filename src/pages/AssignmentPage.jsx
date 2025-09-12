@@ -1,20 +1,12 @@
-// src/pages/AssignmentManagementPage.jsx
+// src/pages/AssignmentPage.jsx
 // -----------------------------------------------------------------------------
-// AssignmentManagementPage (Refined - full file, with mobile typing fix)
-// - Fetches assignments joined with profiles(full_name) so created_by shows admin name
-// - Preserve created_by on update (do not overwrite with NULL)
-// - Scroll-to-top when editing an assignment
-// - Desktop: table layout for assignments & grading
-// - Mobile: card layout for assignments & grading (no tables) — polished, interactive
-// - Course analytics per-course (assignments + submissions)
-// - Responsive header with back + KPIs
-// - Uses: React, supabase, shadcn/ui, recharts, framer-motion, lucide-react
-// - UX fixes:
-//   * Local buffering for grade/feedback to prevent keyboard lift/remount on each keystroke
-//   * Memoized rows, stable keys
-//   * cursor-pointer on all buttons (incl. dialog buttons)
-//   * Fully themed shadcn Select (Trigger/Content/Item) to match page theme
+// AssignmentManagementPage (Refined + PDF upload support)
+// - Full page: create/edit assignments, grade submissions, analytics, responsive
+// - Added: PDF upload field for admins (uploads to 'assignment-pdfs' Supabase bucket)
+// - Saves `file_url` in `assignments` table and shows "View PDF" where available
+// - Preserves original behavior; minimal changes limited to upload handling and UI
 // -----------------------------------------------------------------------------
+
 
 import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -90,7 +82,7 @@ import {
 } from "recharts";
 
 // -----------------------------------------------------------------------------
-// Theme
+// Theme & helpers
 // -----------------------------------------------------------------------------
 
 const COLORS = ["#10B981", "#34D399", "#059669", "#047857", "#065F46", "#06b6d4", "#8b5cf6"];
@@ -106,15 +98,6 @@ function formatDateDisplay(d) {
 
 // -----------------------------------------------------------------------------
 // ThemedSelect (wraps shadcn Select with dark/emerald styling)
-// API-compatible wrapper to keep your JSX clean.
-//
-// Usage:
-// <ThemedSelect value={...} onValueChange={...}>
-//   <ThemedSelect.Trigger placeholder="..." />
-//   <ThemedSelect.Content>
-//     <ThemedSelect.Item value="...">Label</ThemedSelect.Item>
-//   </ThemedSelect.Content>
-// </ThemedSelect>
 // -----------------------------------------------------------------------------
 
 function ThemedSelectRoot({ children, ...props }) {
@@ -207,6 +190,10 @@ export default function AssignmentPage() {
   // Submission counts per course (client-side aggregation)
   const [submissionCountsByCourse, setSubmissionCountsByCourse] = useState({});
 
+  // PDF upload state (new)
+  const [pdfFile, setPdfFile] = useState(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+
   // ---------------------------------------------------------------------------
   // Initial load: courses + assignments (joined with profiles to get creator name)
   // ---------------------------------------------------------------------------
@@ -235,11 +222,11 @@ export default function AssignmentPage() {
       const { data, error } = await supabase
         .from("assignments")
         .select(
-          "id, course_id, title, description, due_date, created_at, created_by, profiles!created_by(full_name, id)"
+          "id, course_id, title, description, due_date, created_at, created_by, file_url, profiles!created_by(full_name, id)"
         )
         .order("created_at", { ascending: false });
 
-    if (error) throw error;
+      if (error) throw error;
 
       const normalized = (data || []).map((row) => ({
         ...row,
@@ -332,7 +319,42 @@ export default function AssignmentPage() {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Create / Update assignment
+  // Upload helper: upload PDF to 'assignment-pdfs' bucket and return public URL
+  // ---------------------------------------------------------------------------
+  async function uploadPdfToBucket(file) {
+    if (!file) return null;
+    try {
+      setUploadingPdf(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `assignments/${fileName}`;
+
+      // upload
+      const { error: uploadError } = await supabase.storage
+        .from("assignment-pdfs")
+        .upload(filePath, file, { upsert: false });
+
+      if (uploadError) {
+        console.error("PDF upload error", uploadError);
+        throw uploadError;
+      }
+
+      // get public url
+      const { data: publicUrlData } = supabase.storage
+        .from("assignment-pdfs")
+        .getPublicUrl(filePath);
+
+      setUploadingPdf(false);
+      return publicUrlData.publicUrl;
+    } catch (err) {
+      setUploadingPdf(false);
+      console.error("uploadPdfToBucket", err);
+      throw err;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Create / Update assignment (with PDF upload)
   // - On insert, set created_by to current user id
   // - On update, avoid changing created_by (preserve original creator)
   // ---------------------------------------------------------------------------
@@ -348,12 +370,31 @@ export default function AssignmentPage() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      // If a PDF file selected, upload first and get URL
+      let file_url = editingAssignment?.file_url || null;
+      if (pdfFile) {
+        try {
+          const uploadedUrl = await uploadPdfToBucket(pdfFile);
+          if (uploadedUrl) file_url = uploadedUrl;
+          else {
+            toast.error("PDF upload returned no URL");
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          toast.error("Failed to upload PDF");
+          setLoading(false);
+          return;
+        }
+      }
+
       if (editingAssignment) {
         const updates = {
           course_id: newAssignment.course_id,
           title: newAssignment.title,
           description: newAssignment.description,
           due_date: newAssignment.due_date || null,
+          file_url: file_url || null,
         };
 
         const { error } = await supabase
@@ -390,6 +431,7 @@ export default function AssignmentPage() {
           description: newAssignment.description,
           due_date: newAssignment.due_date || null,
           created_by: user?.id ?? null,
+          file_url: file_url || null,
         };
 
         const { data, error } = await supabase
@@ -410,6 +452,7 @@ export default function AssignmentPage() {
 
       setNewAssignment({ course_id: "", title: "", description: "", due_date: "" });
       setEditingAssignment(null);
+      setPdfFile(null);
     } catch (err) {
       console.error("handleSaveAssignment err", err);
       toast.error("Unexpected error");
@@ -756,6 +799,22 @@ export default function AssignmentPage() {
               >
                 View Submissions
               </Button>
+
+              {/* View PDF if exists */}
+              <div>
+                {a.file_url ? (
+                  <a
+                    href={a.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-300 underline text-sm"
+                  >
+                    View PDF
+                  </a>
+                ) : (
+                  <div className="text-xs text-zinc-400">No PDF</div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -777,7 +836,13 @@ export default function AssignmentPage() {
         <TableCell className="text-zinc-300">
           {a.created_by_name || (a.created_by ? a.created_by.slice(0, 7) : "Unknown")}
         </TableCell>
-        <TableCell className="flex gap-2">
+        <TableCell className="text-zinc-300">
+          {a.file_url ? (
+            <a href={a.file_url} target="_blank" rel="noreferrer" className="text-emerald-400 underline mr-3">View PDF</a>
+          ) : (
+            <span className="text-zinc-500 mr-3">No PDF</span>
+          )}
+
           <Button
             size="sm"
             variant="outline"
@@ -790,14 +855,14 @@ export default function AssignmentPage() {
             size="sm"
             variant="destructive"
             onClick={() => handleConfirmDelete(a)}
-            className="cursor-pointer"
+            className="ml-2 cursor-pointer"
           >
             <Trash className="w-4 h-4 mr-1" /> Delete
           </Button>
           <Button
             size="sm"
             onClick={() => setSelectedAssignment(a)}
-            className="cursor-pointer"
+            className="ml-2 cursor-pointer"
           >
             View Submissions
           </Button>
@@ -890,9 +955,9 @@ export default function AssignmentPage() {
                       setNewAssignment((p) => ({ ...p, course_id: v }))
                     }
                   >
-                   <ThemedSelect.Trigger>
-  <ThemedSelect.Value placeholder="Select a course" />
-</ThemedSelect.Trigger>
+                    <ThemedSelect.Trigger>
+                      <ThemedSelect.Value placeholder="Select a course" />
+                    </ThemedSelect.Trigger>
 
                     <ThemedSelect.Content>
                       {courses.map((c) => (
@@ -914,6 +979,7 @@ export default function AssignmentPage() {
                       setNewAssignment((p) => ({ ...p, title: e.target.value }))
                     }
                     className="bg-zinc-800 text-emerald-100 border-zinc-700"
+                    required
                   />
                 </div>
 
@@ -969,6 +1035,57 @@ export default function AssignmentPage() {
                   </Popover>
                 </div>
 
+                {/* PDF upload UI */}
+<div>
+  <label className="block text-zinc-400 mb-1">Attach PDF</label>
+
+  <div className="relative">
+    {/* Hidden real input */}
+    <input
+      id="pdf-upload"
+      type="file"
+      accept="application/pdf"
+      onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+      className="hidden"
+    />
+
+    {/* Styled trigger */}
+    <label
+      htmlFor="pdf-upload"
+      className="inline-flex items-center w-full justify-center px-4 py-1 bg-emerald-600 hover:bg-emerald-500
+                 text-black font-medium rounded-lg cursor-pointer transition-colors"
+    >
+      Upload PDF
+    </label>
+  </div>
+
+  {/* Show selected file */}
+  {pdfFile && (
+    <p className="text-xs text-emerald-300 mt-1">Selected: {pdfFile.name}</p>
+  )}
+
+  {/* Existing file if editing */}
+  {editingAssignment?.file_url && !pdfFile && (
+    <div className="mt-2 text-xs">
+      Existing PDF:{" "}
+      <a
+        href={editingAssignment.file_url}
+        target="_blank"
+        rel="noreferrer"
+        className="text-emerald-300 underline"
+      >
+        View current file
+      </a>
+    </div>
+  )}
+
+  {/* Uploading indicator */}
+  {uploadingPdf && (
+    <div className="text-xs text-zinc-400 mt-2">Uploading PDF…</div>
+  )}
+</div>
+
+
                 <div className="flex gap-3 items-center">
                   <Button
                     type="submit"
@@ -989,8 +1106,9 @@ export default function AssignmentPage() {
                           description: "",
                           due_date: "",
                         });
+                        setPdfFile(null);
                       }}
-                      className="cursor-pointer"
+                      className="cursor-pointer bg-white text-black "
                     >
                       Cancel
                     </Button>
@@ -1078,7 +1196,7 @@ export default function AssignmentPage() {
 
         {/* Assignments list */}
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-1 sm:gap-4">
             <h2 className="text-lg font-semibold text-emerald-300">Assignments</h2>
             <div className="flex items-center gap-3">
               <Input
@@ -1157,8 +1275,8 @@ export default function AssignmentPage() {
                 }
               >
                 <ThemedSelect.Trigger>
-              <ThemedSelect.Value placeholder="Select assignment" />
-            </ThemedSelect.Trigger>
+                  <ThemedSelect.Value placeholder="Select assignment" />
+                </ThemedSelect.Trigger>
 
                 <ThemedSelect.Content>
                   {assignments.map((a) => (

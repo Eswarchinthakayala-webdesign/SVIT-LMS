@@ -1,9 +1,5 @@
 // src/pages/AdminRoadmap.jsx
-// Admin Roadmap — responsive & UI polish version with QR preview & download
-// - Preserves all original logic & functionality
-// - Responsive dialogs, cards, charts, and tables
-// - cursor-pointer added to interactive controls
-// - QR generation (preview + download) for submission links
+// Admin Roadmap — responsive + PDF upload for assignments
 /* eslint-disable react/no-danger */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
@@ -34,6 +30,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -50,12 +47,21 @@ import {
   ArrowDown,
   RefreshCw,
   Move,
+  Award,
+  Users,
+  Calendar as CalendarIcon,
+  CheckCircle,
   FileText,
   BarChart2,
+  X,
   Download,
   ExternalLink,
+  Eye,
+  Settings,
+  Zap,
   Info,
   AlertTriangle,
+  Upload,
 } from "lucide-react";
 
 import {
@@ -93,8 +99,6 @@ import {
   Cell,
 } from "recharts";
 
-import QRCode from "qrcode"; // for QR generation
-
 // -------------- Utilities --------------
 function shortDate(d) {
   if (!d) return "—";
@@ -126,17 +130,17 @@ function SmallLoading() {
 function ConfirmDialog({ open, title, description, onClose, onConfirm }) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-full sm:max-w-md md:max-w-lg rounded-xl border border-zinc-800 bg-zinc-950 shadow-lg">
+      <DialogContent className="w-full max-w-md bg-black">
         <DialogHeader>
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-6 h-6 text-amber-400" />
             <DialogTitle className="text-emerald-300">{title}</DialogTitle>
           </div>
-          <div className="text-xs text-zinc-400 mt-2">{description}</div>
+          <DialogDescription className="text-xs text-zinc-400 mt-2">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex justify-end gap-2 mt-4">
           <Button variant="outline" className="cursor-pointer" onClick={onClose}>Cancel</Button>
-          <Button className="bg-rose-600 text-slate-100 cursor-pointer" onClick={() => { onConfirm(); onClose(); }}>Delete</Button>
+          <Button className="bg-rose-600 hover:bg-red-500 cursor-pointer text-slate-100" onClick={() => { onConfirm(); onClose(); }}>Delete</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -157,19 +161,19 @@ function AdminSortableModule({ module, stats = {}, assignments = [], onEdit, onD
 
   return (
     <motion.div ref={setNodeRef} style={style} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 shadow-sm">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-start gap-3 w-full">
+      <div className="flex items-start flex-col sm:flex-row justify-between gap-4">
+        <div className="flex items-start gap-3">
           <div {...attributes} {...listeners} className="p-2 rounded-md bg-zinc-800/40 cursor-grab">
             <Move className="w-5 h-5 text-emerald-300" />
           </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-3 flex-wrap">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3">
               <div className={`text-lg font-semibold ${stats.percent === 100 ? "text-emerald-300" : "text-slate-100"} truncate`}>{module.title}</div>
               {locked && <Badge className="bg-zinc-700 text-zinc-100">Locked</Badge>}
               {overdue && <Badge className="bg-rose-700 text-rose-100">Overdue</Badge>}
             </div>
             <div className="text-xs text-zinc-400 mt-2 line-clamp-3" dangerouslySetInnerHTML={{ __html: sanitizeHtml(module.description || "") }} />
-            <div className="mt-3 flex items-center gap-3 text-xs text-zinc-400 flex-wrap">
+            <div className="mt-3 flex items-center gap-3 text-xs text-zinc-400">
               <div>Started: <span className="text-slate-100 ml-1">{stats.started ?? 0}</span></div>
               <div>Completed: <span className="text-slate-100 ml-1">{stats.completed ?? 0}</span></div>
               <div>Assignments: <span className="text-slate-100 ml-1">{assignments?.length ?? 0}</span></div>
@@ -177,17 +181,31 @@ function AdminSortableModule({ module, stats = {}, assignments = [], onEdit, onD
           </div>
         </div>
 
-        <div className="flex flex-row sm:flex-col items-end gap-2">
-          <div className="flex gap-2">
-            <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => onOpenAssignments(module)}><FileText className="w-4 h-4 text-emerald-300" /></Button>
-            <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => onEdit(module)}><Edit className="w-4 h-4 text-amber-400" /></Button>
-            <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => onDelete(module.id)}><Trash className="w-4 h-4 text-rose-400" /></Button>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => onMoveUp(module)}><ArrowUp className="w-4 h-4 text-black" /></Button>
-            <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => onMoveDown(module)}><ArrowDown className="w-4 h-4 text-black" /></Button>
-          </div>
-        </div>
+       <div className="flex flex-col items-end gap-2 flex-shrink-0 sm:flex-row sm:flex-wrap md:flex-col">
+  {/* Top row buttons */}
+  <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+    <Button size="sm" variant="ghost" className='cursor-pointer' onClick={() => onOpenAssignments(module)}>
+      <FileText className="w-4 h-4 text-emerald-300" />
+    </Button>
+    <Button size="sm" variant="ghost" className='cursor-pointer' onClick={() => onEdit(module)}>
+      <Edit className="w-4 h-4 text-amber-400" />
+    </Button>
+    <Button size="sm" variant="ghost" className='cursor-pointer' onClick={() => onDelete(module.id)}>
+      <Trash className="w-4 h-4 text-rose-400" />
+    </Button>
+  </div>
+
+  {/* Move up/down buttons */}
+  <div className="flex flex-wrap gap-2 justify-end w-full sm:w-auto">
+    <Button size="sm"  variant="outline" className='cursor-pointer' onClick={() => onMoveUp(module)}>
+      <ArrowUp className="w-4 h-4 text-black" />
+    </Button>
+    <Button size="sm" variant="outline" className='cursor-pointer' onClick={() => onMoveDown(module)}>
+      <ArrowDown className="w-4 h-4 text-black" />
+    </Button>
+  </div>
+</div>
+
       </div>
     </motion.div>
   );
@@ -204,9 +222,6 @@ export default function AdminRoadmap() {
   const [progressMap, setProgressMap] = useState({}); // module_id -> { started, completed, percent, total }
   const [badges, setBadges] = useState([]);
 
-  // qr cache
-  const [qrCache, setQrCache] = useState({}); // url -> dataUrl
-
   // UI
   const [loading, setLoading] = useState(false);
   const [showModuleDialog, setShowModuleDialog] = useState(false);
@@ -215,7 +230,11 @@ export default function AdminRoadmap() {
 
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState(null);
-  const [assignmentForm, setAssignmentForm] = useState({ title: "", description: "", link_url: "", module_id: "" });
+  const [assignmentForm, setAssignmentForm] = useState({ title: "", description: "", link_url: "", module_id: "", due_date: "", file_url: "" });
+
+  // file upload state for assignments (hidden input + styled button)
+  const [pdfFile, setPdfFile] = useState(null);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
 
   // submissions reviewer (dialog with form for grading)
   const [showSubmissionsDrawer, setShowSubmissionsDrawer] = useState(false);
@@ -223,7 +242,7 @@ export default function AdminRoadmap() {
   const [activeSubmission, setActiveSubmission] = useState(null);
   const [gradingForm, setGradingForm] = useState({ grade: "", feedback: "", awardBadgeToStudent: false, badgeIdToAward: "" });
 
-  // analytics page view (rendered as page view)
+  // analytics page view (rendered as full page)
   const [showAnalyticsPage, setShowAnalyticsPage] = useState(false);
 
   // confirm dialogs state
@@ -244,7 +263,6 @@ export default function AdminRoadmap() {
       const { data, error } = await supabase.from("courses").select("id,title").order("title");
       if (error) throw error;
       setCourses(data || []);
-      // IMPORTANT: do NOT auto-select the first course. Leave courseId empty to force selection.
     } catch (err) {
       console.error("fetchCourses", err);
       toast.error("Could not load courses");
@@ -258,7 +276,7 @@ export default function AdminRoadmap() {
       // Fetch modules + badges
       const { data: mods, error: modsErr } = await supabase
         .from("modules")
-        .select("*, badges(id,title,text,icon_url,module_id)")
+        .select("*, badges(id,title,icon_url,module_id)")
         .eq("course_id", cid)
         .order("order_number", { ascending: true });
       if (modsErr) throw modsErr;
@@ -420,7 +438,6 @@ export default function AdminRoadmap() {
           if (moduleIdToUse) {
             const badgePayload = {
               title: moduleForm.badge_text.trim(),
-              text: moduleForm.badge_text.trim(),
               module_id: moduleIdToUse,
             };
             const { error: berr } = await supabase.from("badges").insert([badgePayload]);
@@ -469,24 +486,78 @@ export default function AdminRoadmap() {
     }
   }
 
-  // -------------- Assignment CRUD --------------
+  // -------------- Assignment CRUD (with PDF upload) --------------
   function openNewAssignment(moduleId) {
     if (!courseId) { toast.info("Please select a course first"); return; }
     setEditingAssignment(null);
-    setAssignmentForm({ title: "", description: "", link_url: "", module_id: moduleId || "" });
+    setAssignmentForm({ title: "", description: "", link_url: "", module_id: moduleId || "", due_date: "", file_url: "" });
+    setPdfFile(null);
     setShowAssignmentDialog(true);
   }
   function openEditAssignment(assign) {
     setEditingAssignment(assign);
-    setAssignmentForm({ title: assign.title || "", description: assign.description || "", link_url: assign.link_url || "", module_id: assign.module_id });
+    setAssignmentForm({ title: assign.title || "", description: assign.description || "", link_url: assign.link_url || "", module_id: assign.module_id, due_date: assign.due_date || "", file_url: assign.file_url || "" });
+    setPdfFile(null);
     setShowAssignmentDialog(true);
+  }
+
+  // upload helper: upload PDF to 'assignment-pdfs' bucket and return public URL
+  async function uploadPdfToBucket(file) {
+    if (!file) return null;
+    try {
+      setUploadingPdf(true);
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+      const filePath = `assignments/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("assignment-pdfs")
+        .upload(filePath, file, { upsert: false });
+
+      if (uploadError) {
+        console.error("PDF upload error", uploadError);
+        setUploadingPdf(false);
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("assignment-pdfs")
+        .getPublicUrl(filePath);
+
+      setUploadingPdf(false);
+      return publicUrlData.publicUrl;
+    } catch (err) {
+      setUploadingPdf(false);
+      console.error("uploadPdfToBucket", err);
+      throw err;
+    }
   }
 
   async function saveAssignment() {
     if (!assignmentForm.title || !assignmentForm.module_id) { toast.error("Title & module required"); return; }
     setLoading(true);
     try {
-      const payload = { title: assignmentForm.title.trim(), description: assignmentForm.description || null, link_url: assignmentForm.link_url || null, module_id: assignmentForm.module_id };
+      let file_url = assignmentForm.file_url || null;
+
+      // If user selected a new PDF, upload first
+      if (pdfFile) {
+        try {
+          const uploadedUrl = await uploadPdfToBucket(pdfFile);
+          if (uploadedUrl) file_url = uploadedUrl;
+          else {
+            toast.error("PDF upload failed");
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          toast.error("Failed to upload PDF");
+          setLoading(false);
+          return;
+        }
+      }
+
+      const payload = { title: assignmentForm.title.trim(), description: assignmentForm.description || null, link_url: assignmentForm.link_url || null, module_id: assignmentForm.module_id, due_date: assignmentForm.due_date || null, file_url };
+
       if (editingAssignment) {
         const { error } = await supabase.from("module_assignments").update(payload).eq("id", editingAssignment.id);
         if (error) throw error;
@@ -497,6 +568,7 @@ export default function AdminRoadmap() {
         toast.success("Assignment created");
       }
       setShowAssignmentDialog(false);
+      setPdfFile(null);
       await fetchAllForCourse(courseId);
     } catch (err) {
       console.error("saveAssignment", err);
@@ -588,35 +660,6 @@ export default function AdminRoadmap() {
     }
   }
 
-  // -------------- QR helpers --------------
-  async function getQrForLink(url) {
-    if (!url) return null;
-    if (qrCache[url]) return qrCache[url];
-    try {
-      const qrDataUrl = await QRCode.toDataURL(url);
-      setQrCache((prev) => ({ ...prev, [url]: qrDataUrl }));
-      return qrDataUrl;
-    } catch (err) {
-      console.error("QR generation failed", err);
-      toast.error("QR generation failed");
-      return null;
-    }
-  }
-
-  async function downloadQrForLink(url) {
-    try {
-      const qrDataUrl = await getQrForLink(url);
-      if (!qrDataUrl) return;
-      const a = document.createElement("a");
-      a.href = qrDataUrl;
-      a.download = "submission_qr.png";
-      a.click();
-    } catch (err) {
-      console.error("QR download failed", err);
-      toast.error("QR generation failed");
-    }
-  }
-
   // -------------- Ordering (drag & drop) --------------
   async function persistOrder(newArr) {
     try {
@@ -683,7 +726,7 @@ export default function AdminRoadmap() {
     });
   }
 
-  // -------------- Helper: Download file safely (kept for direct open) --------------
+  // -------------- Helper: Download --------------
   async function downloadFileSafely(url) {
     if (!url) return;
     window.open(url, "_blank", "noopener,noreferrer");
@@ -695,37 +738,48 @@ export default function AdminRoadmap() {
       <div className="max-w-7xl mx-auto">
         {/* header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-start gap-4">
-            <div className="p-3 rounded-2xl bg-emerald-900/20">
+          <div className="flex items-start gap-4 w-full md:w-auto">
+            <div className="p-3 rounded-2xl bg-emerald-900/20 flex-shrink-0">
               <ListIcon className="w-6 h-6 text-emerald-300" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-emerald-300">Admin Roadmap</h1>
-              <p className="text-xs text-zinc-400">Manage modules, assignments, review submissions and award badges.</p>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold text-emerald-300 truncate">Admin Roadmap</h1>
+              <p className="text-xs text-zinc-400 truncate">Manage modules, assignments, review submissions and award badges.</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="w-full sm:w-64">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+            <div className="w-full md:w-64">
               <Select value={courseId} onValueChange={(v) => setCourseId(v)} className="w-full">
                 <SelectTrigger className="bg-zinc-900 border border-zinc-800 w-full">
                   <SelectValue placeholder="Choose course" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 text-slate-100">
-                  {courses.map(c => <SelectItem className="cursor-pointer" key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                <SelectContent className="bg-zinc-900 text-slate-100 max-h-60 overflow-auto">
+                  {courses.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
                 </SelectContent>
               </Select>
               {!courseId && (
                 <div className="text-xs text-zinc-400 mt-1 flex items-center gap-2">
                   <Info className="w-4 h-4 text-amber-400" />
-                  <span>Please select a course — use the dropdown above. Tip: create a course first if none exist.</span>
+                  <span className="truncate">Please select a course — use the dropdown above. Tip: create a course first if none exist.</span>
                 </div>
               )}
             </div>
 
-            <Button className="bg-emerald-500 hover:bg-emerald-400 text-slate-100 cursor-pointer" onClick={openNewModule}><PlusCircle className="w-4 h-4 mr-2 text-slate-100" /> New module</Button>
-            <Button variant="outline" className="cursor-pointer text-black" onClick={() => setShowAnalyticsPage(true)}><BarChart2 className="w-4 h-4 mr-2 text-amber-400" /> Analytics</Button>
-            <Button variant="ghost" className="cursor-pointer hover:text-black" onClick={() => { if (!courseId) { fetchCourses(); toast.info("Select a course to refresh course data"); } else fetchAllForCourse(courseId); }} title="Refresh"><RefreshCw className="w-4 h-4" /></Button>
+            {/* Responsive action buttons: stacked on mobile, inline on desktop */}
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
+              <Button className="bg-emerald-500 hover:bg-emerald-400 cursor-pointer text-slate-100 w-full sm:w-auto" onClick={openNewModule}>
+                <PlusCircle className="w-4 h-4 mr-2 text-slate-100" /> New module
+              </Button>
+
+              <Button variant="outline" className="w-full sm:w-auto cursor-pointer text-black" onClick={() => setShowAnalyticsPage(true)}>
+                <BarChart2 className="w-4 h-4 mr-2 text-amber-400" /> Analytics
+              </Button>
+
+              <Button variant="ghost" className="w-full sm:w-auto cursor-pointer bg-white" onClick={() => { if (!courseId) { fetchCourses(); toast.info("Select a course to refresh course data"); } else fetchAllForCourse(courseId); }} title="Refresh">
+                <RefreshCw className="w-4 h-4 text-black" /> <p className="text-black sm:hidden flex">Refresh</p>
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -737,7 +791,7 @@ export default function AdminRoadmap() {
               <Card className="bg-zinc-900/50 border border-zinc-800 rounded-2xl">
                 <CardHeader className="flex items-center justify-between px-4 py-3">
                   <CardTitle className="text-emerald-300">Modules</CardTitle>
-                  <div className="text-xs text-zinc-400 hidden sm:block">Drag to reorder • Click assignment icon to view submissions</div>
+                  <div className="text-xs text-zinc-400">Drag to reorder • Tap assignment icon to view submissions</div>
                 </CardHeader>
 
                 <CardContent className="p-4">
@@ -745,11 +799,11 @@ export default function AdminRoadmap() {
                     courseId ? (
                       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
                         <SortableContext items={modules.map(m => m.id)} strategy={rectSortingStrategy}>
-                          <div className="flex flex-col gap-4">
+                          <div className="grid grid-cols-1">
                             {modules.length === 0 ? (
-                              <div className="p-6 text-center text-zinc-400">No modules — create one to get started</div>
+                              <div className="p-6 text-center text-zinc-400 col-span-full">No modules — create one to get started</div>
                             ) : modules.map((m) => (
-                              <div key={m.id} className="grid grid-cols-1 gap-4">
+                              <div key={m.id} className="flex flex-col gap-3">
                                 <AdminSortableModule
                                   module={m}
                                   stats={progressMap[m.id] || {}}
@@ -775,30 +829,75 @@ export default function AdminRoadmap() {
                                     }
                                   }}
                                 />
-                                {/* assignments list */}
-                                <div id={`assignments-${m.id}`} className="mt-3 p-3 rounded-lg bg-zinc-900/30 border border-zinc-800">
+                                {/* assignments list (responsive) */}
+                                <div id={`assignments-${m.id}`} className="mt-1 p-3 rounded-lg bg-zinc-900/30 border border-zinc-800">
                                   <div className="flex items-center justify-between">
                                     <div className="text-sm text-slate-100 font-medium">Assignments ({(assignmentsMap[m.id] || []).length})</div>
                                     <div className="flex gap-2">
-                                      <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => openNewAssignment(m.id)}>Add assignment</Button>
+                                      <Button size="sm" variant="outline" onClick={() => openNewAssignment(m.id)}>Add assignment</Button>
                                     </div>
                                   </div>
-                                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {(assignmentsMap[m.id] || []).length === 0 ? (
-                                      <div className="text-xs text-zinc-400">No assignments yet</div>
-                                    ) : (assignmentsMap[m.id] || []).map(a => (
-                                      <div key={a.id} className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800 flex items-center justify-between">
-                                        <div className="min-w-0">
-                                          <div className="text-sm text-slate-100 font-medium truncate">{a.title}</div>
-                                          <div className="text-xs text-zinc-400 truncate">{a.description}</div>
+
+                                  {/* assignments list responsive: cards on mobile, grid/table on larger */}
+                                  <div className="mt-3">
+                                    {/* mobile cards */}
+                                    <div className="md:hidden space-y-2">
+                                      {(assignmentsMap[m.id] || []).length === 0 ? (
+                                        <div className="text-xs text-zinc-400">No assignments yet</div>
+                                      ) : (assignmentsMap[m.id] || []).map(a => (
+                                        <div key={a.id} className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800 flex items-center justify-between">
+                                          <div className="min-w-0">
+                                            <div className="text-sm text-slate-100 font-medium truncate">{a.title}</div>
+                                            <div className="text-xs text-zinc-400 truncate">{a.description}</div>
+                                            {a.file_url && <div className="text-xs text-emerald-300 mt-1 truncate"><a href={a.file_url} target="_blank" rel="noreferrer" className="underline">View PDF</a> • <a href={a.file_url} download className="underline text-cyan-300">Download</a></div>}
+                                          </div>
+                                          <div className="flex items-center gap-2 ml-3">
+                                            <Button size="sm" className="cursor-pointer" variant="ghost" onClick={() => openAssignmentSubmissions(a)}><FileText className="w-4 h-4 text-emerald-300" /></Button>
+                                            <Button size="sm"   className="cursor-pointer" variant="ghost" onClick={() => openEditAssignment(a)}><Edit className="w-4 h-4 text-amber-400" /></Button>
+                                            <Button size="sm"  className="cursor-pointer" variant="ghost" onClick={() => requestDeleteAssignment(a.id)}><Trash className="w-4 h-4 text-rose-400" /></Button>
+                                          </div>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => openAssignmentSubmissions(a)}><FileText className="w-4 h-4 text-emerald-300" /></Button>
-                                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => openEditAssignment(a)}><Edit className="w-4 h-4 text-amber-400" /></Button>
-                                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => requestDeleteAssignment(a.id)}><Trash className="w-4 h-4 text-rose-400" /></Button>
-                                        </div>
-                                      </div>
-                                    ))}
+                                      ))}
+                                    </div>
+
+                                    {/* desktop table */}
+                                    <div className="hidden md:block overflow-x-auto">
+                                      <table className="w-full text-left text-sm">
+                                        <thead className="text-zinc-400">
+                                          <tr>
+                                            <th className="p-2">Title</th>
+                                            <th className="p-2">Due</th>
+                                            <th className="p-2">PDF</th>
+                                            <th className="p-2">Actions</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {(assignmentsMap[m.id] || []).length === 0 ? (
+                                            <tr><td colSpan={4} className="p-4 text-zinc-400">No assignments yet</td></tr>
+                                          ) : (assignmentsMap[m.id] || []).map(a => (
+                                            <tr key={a.id} className="border-t border-zinc-800">
+                                              <td className="p-2 text-slate-100">{a.title}<div className="text-xs text-zinc-400">{a.description}</div></td>
+                                              <td className="p-2 text-emerald-300">{a.due_date ? shortDate(a.due_date) : "—"}</td>
+                                              <td className="p-2">
+                                                {a.file_url ? (
+                                                  <div className="flex items-center gap-2">
+                                                    <a href={a.file_url} target="_blank" rel="noreferrer" className="text-emerald-300 underline flex items-center gap-1"><FileText className="w-4 h-4" /> View</a>
+                                                    <a href={a.file_url} download className="text-cyan-300 underline text-sm">Download</a>
+                                                  </div>
+                                                ) : <span className="text-zinc-500">No PDF</span>}
+                                              </td>
+                                              <td className="p-2">
+                                                <div className="flex items-center gap-2">
+                                                  <Button size="sm" variant="ghost" onClick={() => openAssignmentSubmissions(a)}><FileText className="w-4 h-4 text-emerald-300" /></Button>
+                                                  <Button size="sm" variant="ghost" onClick={() => openEditAssignment(a)}><Edit className="w-4 h-4 text-amber-400" /></Button>
+                                                  <Button size="sm" variant="ghost" onClick={() => requestDeleteAssignment(a.id)}><Trash className="w-4 h-4 text-rose-400" /></Button>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -831,7 +930,7 @@ export default function AdminRoadmap() {
                   <div className="text-xs text-zinc-400 mt-3">Assignments</div>
                   <div className="text-xl font-semibold text-slate-100 mt-1">{Object.values(assignmentsMap).flat().length}</div>
                   <div className="mt-4">
-                    <Button size="sm" variant="outline" className="cursor-pointer" onClick={() => { if (!courseId) { toast.info("Select course to refresh data"); } else fetchAllForCourse(courseId); }}>Refresh</Button>
+                    <Button size="sm" className="text-black" variant="outline" onClick={() => { if (!courseId) { toast.info("Select course to refresh data"); } else fetchAllForCourse(courseId); }}>Refresh</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -839,13 +938,13 @@ export default function AdminRoadmap() {
               <Card className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-4">
                 <CardHeader><CardTitle className="text-emerald-300">Recent assignments</CardTitle></CardHeader>
                 <CardContent>
-                  <ScrollArea className="max-h-56">
+                  <ScrollArea className="max-h-56 overflow-auto">
                     <div className="space-y-2">
                       {Object.values(assignmentsMap).flat().slice(0, 8).map(a => (
                         <div key={a.id} className="p-2 rounded-md bg-zinc-900/40 border border-zinc-800 flex items-center justify-between">
                           <div className="text-xs text-slate-100 truncate">{a.title}</div>
                           <div className="flex gap-2">
-                            <Button size="sm" variant="ghost" className="cursor-pointer text-emerald-400" onClick={() => openAssignmentSubmissions(a)}>View</Button>
+                            <Button size="sm" className="cursor-pointer text-yellow-400" variant="ghost" onClick={() => openAssignmentSubmissions(a)}>View</Button>
                           </div>
                         </div>
                       ))}
@@ -863,8 +962,8 @@ export default function AdminRoadmap() {
                       <div className="text-xs text-zinc-400">No badges created on modules</div>
                     ) : badges.map(b => (
                       <div key={b.id} className="p-2 rounded-md bg-zinc-900/40 border border-zinc-800 flex items-center gap-2">
-                        <div className="w-7 h-7 rounded bg-amber-600 flex items-center justify-center text-xs font-semibold text-slate-100">{(b.text || b.title || "").slice(0, 2).toUpperCase()}</div>
-                        <div className="text-xs text-slate-100">{b.title || b.text}</div>
+                        <div className="w-7 h-7 rounded bg-amber-600 flex items-center justify-center text-xs font-semibold text-slate-100">{(b.title || "").slice(0, 2).toUpperCase()}</div>
+                        <div className="text-xs text-slate-100">{b.title}</div>
                       </div>
                     ))}
                   </div>
@@ -881,8 +980,8 @@ export default function AdminRoadmap() {
                 <p className="text-xs text-zinc-400">Interactive charts showing module starts, completions and progress</p>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" className="cursor-pointer" onClick={() => setShowAnalyticsPage(false)}>Back</Button>
-                <Button variant="outline" className="cursor-pointer text-black" onClick={() => { if (courseId) fetchAllForCourse(courseId); else toast.info("Select a course to refresh analytics"); }}>Refresh</Button>
+                <Button variant="ghost" onClick={() => setShowAnalyticsPage(false)}>Back</Button>
+                <Button variant="outline" className="text-black cursor-pointer" onClick={() => { if (courseId) fetchAllForCourse(courseId); else toast.info("Select a course to refresh analytics"); }}>Refresh</Button>
               </div>
             </div>
 
@@ -900,7 +999,7 @@ export default function AdminRoadmap() {
               <Card className="bg-zinc-900/50 border border-zinc-800 p-4 lg:col-span-2">
                 <CardHeader><CardTitle className="text-emerald-300">Module Starts vs Completions (area)</CardTitle></CardHeader>
                 <CardContent>
-                  <div style={{ height: 260 }} className="overflow-x-auto">
+                  <div style={{ height: 260 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
                         <defs>
@@ -917,12 +1016,13 @@ export default function AdminRoadmap() {
                         <YAxis stroke="#94a3b8" />
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                         <ReTooltip
-                        contentStyle={{
-                          backgroundColor: "#18181b",
-                          border: "1px solid #333",
-                          borderRadius:"10px",
-                        }}
-                        labelStyle={{ color: "#22c55e" }} />
+                          contentStyle={{
+                        backgroundColor: "#18181b",
+                        border: "1px solid #333",
+                        color: "#fff",
+                        borderRadius:"10px",
+                      }}
+                        />
                         <Area type="monotone" dataKey="started" stroke="#60A5FA" fill="url(#gradStarted)" />
                         <Area type="monotone" dataKey="completed" stroke="#10B981" fill="url(#gradCompleted)" />
                       </AreaChart>
@@ -936,20 +1036,20 @@ export default function AdminRoadmap() {
               <Card className="bg-zinc-900/50 border border-zinc-800 p-4">
                 <CardHeader><CardTitle className="text-emerald-300">Completion mix (pie)</CardTitle></CardHeader>
                 <CardContent>
-                  <div style={{ height: 240 }} className="overflow-x-auto">
+                  <div style={{ height: 240 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={80} label>
                           {pieData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
                         </Pie>
                         <Legend />
-                        <ReTooltip
-                        contentStyle={{
-                          backgroundColor: "#58585b",
-                          border: "1px solid #333",
-                          borderRadius:"10px",
-                        }}
-                        labelStyle={{ color: "#22c55e" }} />
+                        <ReTooltip 
+                         contentStyle={{
+                        backgroundColor: "#585867",
+                        border: "1px solid #333",
+                        color: "#fff",
+                        borderRadius:"10px",
+                      }}/>
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -959,19 +1059,19 @@ export default function AdminRoadmap() {
               <Card className="bg-zinc-900/50 border border-zinc-800 p-4">
                 <CardHeader><CardTitle className="text-emerald-300">Progress vs assignments (line)</CardTitle></CardHeader>
                 <CardContent>
-                  <div style={{ height: 240 }} className="overflow-x-auto">
+                  <div style={{ height: 240 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
                         <XAxis dataKey="name" stroke="#94a3b8" />
                         <YAxis stroke="#94a3b8" />
                         <ReTooltip
-                        contentStyle={{
-                          backgroundColor: "#18181b",
-                          border: "1px solid #333",
-                          borderRadius:"10px",
-                        }}
-                        labelStyle={{ color: "#22c55e" }} />
+                         contentStyle={{
+                        backgroundColor: "#18181b",
+                        border: "1px solid #333",
+                        color: "#fff",
+                        borderRadius:"10px",
+                      }} />
                         <Legend />
                         <Line type="monotone" dataKey="percent" stroke="#F59E0B" />
                       </LineChart>
@@ -984,23 +1084,21 @@ export default function AdminRoadmap() {
             <div className="mt-4">
               <div className="text-sm text-zinc-400 mb-2">Per-module stats</div>
               <div className="max-h-60 overflow-auto bg-zinc-900/40 p-3 rounded border border-zinc-800">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="text-zinc-400">
-                      <tr><th className="p-2">Module</th><th className="p-2">Started</th><th className="p-2">Completed</th><th className="p-2">Percent</th></tr>
-                    </thead>
-                    <tbody>
-                      {modules.map(m => (
-                        <tr key={m.id} className="border-t border-zinc-800">
-                          <td className="p-2 text-slate-100">{m.title}</td>
-                          <td className="p-2">{progressMap[m.id]?.started ?? 0}</td>
-                          <td className="p-2">{progressMap[m.id]?.completed ?? 0}</td>
-                          <td className="p-2">{progressMap[m.id]?.percent ?? 0}%</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-zinc-400">
+                    <tr><th className="p-2">Module</th><th className="p-2">Started</th><th className="p-2">Completed</th><th className="p-2">Percent</th></tr>
+                  </thead>
+                  <tbody>
+                    {modules.map(m => (
+                      <tr key={m.id} className="border-t border-zinc-800">
+                        <td className="p-2 text-slate-100">{m.title}</td>
+                        <td className="p-2">{progressMap[m.id]?.started ?? 0}</td>
+                        <td className="p-2">{progressMap[m.id]?.completed ?? 0}</td>
+                        <td className="p-2">{progressMap[m.id]?.percent ?? 0}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -1008,15 +1106,15 @@ export default function AdminRoadmap() {
 
         {/* submissions drawer / panel (dialog) */}
         <Dialog open={showSubmissionsDrawer} onOpenChange={(open) => { if (!open) { setShowSubmissionsDrawer(false); setActiveAssignment(null); setActiveSubmission(null); } }}>
-          <DialogContent className="w-full sm:max-w-xl md:max-w-3xl lg:max-w-6xl rounded-xl border border-zinc-800 bg-zinc-950 shadow-lg">
-            <DialogHeader>
+          <DialogContent className="w-full  bg-black">
+            <DialogHeader >
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="text-emerald-300">{activeAssignment ? `Submissions — ${activeAssignment.title}` : "Submissions"}</DialogTitle>
-                  <div className="text-xs text-zinc-400 mt-1">Review student work and grade</div>
+                  <DialogDescription className="text-xs text-zinc-400 mt-1">Review student work and grade</DialogDescription>
                 </div>
                 <div>
-                  <Button variant="ghost" className="cursor-pointer bg-emerald-500 hover:bg-emerald-400 text-black" onClick={() => { setShowSubmissionsDrawer(false); setActiveAssignment(null); setActiveSubmission(null); }}>Close</Button>
+                  <Button variant="ghost" className="text-white cursor-pointer" onClick={() => { setShowSubmissionsDrawer(false); setActiveAssignment(null); setActiveSubmission(null); }}>Close</Button>
                 </div>
               </div>
             </DialogHeader>
@@ -1025,34 +1123,19 @@ export default function AdminRoadmap() {
               <div className="md:col-span-2 space-y-3 max-h-[60vh] overflow-auto">
                 {(activeAssignment && submissionsMap[activeAssignment.id] && submissionsMap[activeAssignment.id].length) ? (
                   submissionsMap[activeAssignment.id].map(s => (
-                    <motion.div key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800 flex flex-col md:flex-row items-start justify-between gap-4">
-                      <div className="min-w-0 flex-1">
+                    <motion.div key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="p-3 rounded-md bg-zinc-900/40 border border-zinc-800 flex items-start justify-between">
+                      <div className="min-w-0">
                         <div className="text-sm text-slate-100 font-medium">Student: <span className="text-slate-200">{s.student_id}</span></div>
                         <div className="text-xs text-zinc-400">Submitted: {shortDate(s.submitted_at)}</div>
-
-                        <div className="text-xs mt-2 flex items-center gap-2">
-                          <span className="text-emerald-300">Resource:</span>
-                          <a className="text-emerald-300 underline cursor-pointer flex items-center gap-1" href={s.file_url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="w-3 h-3" />
-                            Open link
-                          </a>
-                        </div>
-
-                        <div className="mt-2">
-                          {qrCache[s.file_url] ? (
-                            <img src={qrCache[s.file_url]} alt="QR preview" className="w-24 h-24 border border-zinc-700 rounded" />
-                          ) : (
-                            <Button size="sm" variant="outline" className="cursor-pointer text-xs" onClick={() => getQrForLink(s.file_url)}>Generate QR</Button>
-                          )}
-                        </div>
-
-                        <div className="text-xs text-gray-400 mt-2">Grade: <span className="text-slate-100">{s.grade ?? "—"}</span> • Feedback: <span className="text-zinc-300">{s.feedback ?? "—"}</span></div>
+                        <div className="text-xs mt-2 text-white">Link: <a className="text-emerald-300 underline" href={s.file_url} target="_blank" rel="noreferrer">{s.file_url}</a></div>
+                        <div className="text-xs mt-2 text-gray-200">Grade: <span className="text-slate-100">{s.grade ?? "—"}</span> • Feedback: <span className="text-zinc-300">{s.feedback ?? "—"}</span></div>
                       </div>
 
                       <div className="flex flex-col items-end gap-2">
                         <div className="flex gap-2">
                           <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => { openSubmissionReview(s); }}><Edit className="w-4 h-4 text-amber-400" /></Button>
-                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => downloadQrForLink(s.file_url)}><Download className="w-4 h-4 text-emerald-300" /></Button>
+                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => window.open(s.file_url, "_blank")}><ExternalLink className="w-4 h-4 text-blue-400" /></Button>
+                          <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => downloadFileSafely(s.file_url)}><Download className="w-4 h-4 text-pink-400" /></Button>
                         </div>
                       </div>
                     </motion.div>
@@ -1069,12 +1152,12 @@ export default function AdminRoadmap() {
                   <>
                     <div className="text-xs text-zinc-400">Student: <span className="text-slate-200">{activeSubmission.student_id}</span></div>
                     <div className="mt-2">
-                      <Label className="text-zinc-400 text-xs">Grade (numeric)</Label>
-                      <Input value={gradingForm.grade} onChange={(e) => setGradingForm(s => ({ ...s, grade: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                      <Label className="text-zinc-400 text-xs mb-2">Grade (numeric)</Label>
+                      <Input value={gradingForm.grade} onChange={(e) => setGradingForm(s => ({ ...s, grade: e.target.value }))} className="bg-zinc-900 border text-emerald-200 border-zinc-800" />
                     </div>
                     <div className="mt-2">
                       <Label className="text-zinc-400 text-xs">Feedback</Label>
-                      <Textarea value={gradingForm.feedback} onChange={(e) => setGradingForm(s => ({ ...s, feedback: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                      <Textarea value={gradingForm.feedback} onChange={(e) => setGradingForm(s => ({ ...s, feedback: e.target.value }))} className="bg-zinc-900 border text-emerald-200 border-zinc-800" />
                     </div>
 
                     <div className="mt-3">
@@ -1082,9 +1165,9 @@ export default function AdminRoadmap() {
                       <div className="flex items-center gap-2 mt-1">
                         <Switch checked={gradingForm.awardBadgeToStudent} onCheckedChange={(v) => setGradingForm(s => ({ ...s, awardBadgeToStudent: v }))} />
                         <Select value={gradingForm.badgeIdToAward} onValueChange={(v) => setGradingForm(s => ({ ...s, badgeIdToAward: v }))} className="w-full">
-                          <SelectTrigger className="bg-zinc-900 text-emerald-300 border border-zinc-800 w-full"><SelectValue placeholder="Select badge" /></SelectTrigger>
+                          <SelectTrigger className="bg-zinc-900 text-emerald-400 border border-zinc-800 w-full"><SelectValue placeholder="Select badge" /></SelectTrigger>
                           <SelectContent className="bg-zinc-900 text-slate-100">
-                            {badges.map(b => <SelectItem className="cursor-pointer" key={b.id} value={b.id}>{b.title || b.text}</SelectItem>)}
+                            {badges.map(b => <SelectItem className="cursor-pointer" key={b.id} value={b.id}>{b.title}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1092,7 +1175,7 @@ export default function AdminRoadmap() {
 
                     <div className="mt-4 flex justify-end gap-2">
                       <Button variant="outline" className="cursor-pointer" onClick={() => { setActiveSubmission(null); setGradingForm({ grade: "", feedback: "", awardBadgeToStudent: false, badgeIdToAward: badges.length ? badges[0].id : "" }); }}>Reset</Button>
-                      <Button className="bg-emerald-500 hover:bg-emerald-400 text-slate-100 cursor-pointer" onClick={submitGrade}>Submit grade</Button>
+                      <Button className="bg-emerald-500 hover:bg-emerald-400 cursor-pointer text-slate-100" onClick={submitGrade}>Submit grade</Button>
                     </div>
                   </>
                 ) : (
@@ -1111,24 +1194,63 @@ export default function AdminRoadmap() {
           {showAssignmentDialog && (
             <motion.div className="fixed inset-0 z-60 flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="absolute inset-0 bg-black/40" onClick={() => setShowAssignmentDialog(false)} />
-              <motion.div initial={{ y: 20 }} animate={{ y: 0 }} exit={{ y: 20 }} className="relative w-full max-w-2xl sm:max-w-2xl md:max-w-3xl bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
+              <motion.div initial={{ y: 20 }} animate={{ y: 0 }} exit={{ y: 20 }} className="relative w-full max-w-2xl bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-emerald-300">{editingAssignment ? "Edit assignment" : "New assignment"}</h3>
-                  <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => setShowAssignmentDialog(false)}>Close</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowAssignmentDialog(false)}>Close</Button>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3">
-                  <Input placeholder="Title" value={assignmentForm.title} onChange={(e) => setAssignmentForm(s => ({ ...s, title: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
-                  <Textarea placeholder="Description" value={assignmentForm.description} onChange={(e) => setAssignmentForm(s => ({ ...s, description: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
-                  <Input placeholder="Resource link (optional)" value={assignmentForm.link_url} onChange={(e) => setAssignmentForm(s => ({ ...s, link_url: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                  <Input placeholder="Title" value={assignmentForm.title} onChange={(e) => setAssignmentForm(s => ({ ...s, title: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
+                  <Textarea placeholder="Description" value={assignmentForm.description} onChange={(e) => setAssignmentForm(s => ({ ...s, description: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
+                  <Input placeholder="Resource link (optional)" value={assignmentForm.link_url} onChange={(e) => setAssignmentForm(s => ({ ...s, link_url: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
                   <Select value={assignmentForm.module_id} onValueChange={(v) => setAssignmentForm(s => ({ ...s, module_id: v }))}>
                     <SelectTrigger className="bg-zinc-900 border border-zinc-800"><SelectValue placeholder="Module" /></SelectTrigger>
                     <SelectContent className="bg-zinc-900 text-slate-100">{modules.map(m => <SelectItem key={m.id} value={m.id}>{m.title}</SelectItem>)}</SelectContent>
                   </Select>
 
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="date" placeholder="Due date" value={assignmentForm.due_date || ""} onChange={(e) => setAssignmentForm(s => ({ ...s, due_date: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
+                    <div></div>
+                  </div>
+
+                  {/* Styled file upload (hidden input + label) */}
+                  <div>
+                    <Label className="text-zinc-400 text-xs">Attach PDF (optional)</Label>
+                    <div className="mt-2 flex items-center gap-3 flex-wrap">
+                      <input
+                        id="assignment-pdf-upload"
+                        type="file"
+                        accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="assignment-pdf-upload"
+                        className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-black font-medium rounded-lg cursor-pointer transition-colors"
+                      >
+                        <Upload className="w-4 h-4 mr-2" /> {pdfFile ? "Change PDF" : "Upload PDF"}
+                      </label>
+
+                      {/* Show selected file name */}
+                      {pdfFile && (
+                        <div className="text-xs text-emerald-300 truncate max-w-xs">{pdfFile.name}</div>
+                      )}
+
+                      {/* Show existing file if editing and no new selection */}
+                      {!pdfFile && editingAssignment?.file_url && (
+                        <div className="text-xs text-zinc-400">
+                          Existing: <a href={editingAssignment.file_url} target="_blank" rel="noreferrer" className="text-emerald-300 underline">View current file</a>
+                        </div>
+                      )}
+
+                      {uploadingPdf && <div className="text-xs text-zinc-400">Uploading PDF…</div>}
+                    </div>
+                  </div>
+
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" className="cursor-pointer" onClick={() => setShowAssignmentDialog(false)}>Cancel</Button>
-                    <Button className="bg-emerald-500 text-slate-100 cursor-pointer" onClick={saveAssignment}>{editingAssignment ? "Save" : "Create"}</Button>
+                    <Button variant="outline" className="text-black cursor-pointer" onClick={() => setShowAssignmentDialog(false)}>Cancel</Button>
+                    <Button className="bg-emerald-500 hover:bg-emerald-400 cursor-pointer text-slate-100" onClick={saveAssignment}>{editingAssignment ? "Save" : "Create"}</Button>
                   </div>
                 </div>
               </motion.div>
@@ -1144,31 +1266,39 @@ export default function AdminRoadmap() {
               <motion.div initial={{ y: 20 }} animate={{ y: 0 }} exit={{ y: 20 }} className="relative w-full max-w-3xl bg-zinc-950 border border-zinc-800 rounded-2xl p-6">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-emerald-300">{editingModule ? "Edit module" : "New module"}</h3>
-                  <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => setShowModuleDialog(false)}>Close</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowModuleDialog(false)}>Close</Button>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 gap-3">
-                  <Input placeholder="Title" value={moduleForm.title} onChange={(e) => setModuleForm(s => ({ ...s, title: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
-                  <div>
-                    <Label className="text-zinc-400 text-xs">Description (rich)</Label>
-                    <div className="mt-2 bg-zinc-800 rounded p-1">
-                      <ReactQuill theme="snow" value={moduleForm.description || ""} onChange={(val) => setModuleForm(s => ({ ...s, description: val }))} />
-                    </div>
-                  </div>
+                  <Input placeholder="Title" value={moduleForm.title} onChange={(e) => setModuleForm(s => ({ ...s, title: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
+                <div className="overflow-hidden">
+                <Label className="text-zinc-400 text-xs">Description (rich)</Label>
+                <div className="mt-2 bg-zinc-800 rounded p-1">
+                  <ReactQuill
+                    theme="snow"
+                    value={moduleForm.description || ""}
+                    onChange={(val) =>
+                      setModuleForm((s) => ({ ...s, description: val }))
+                    }
+                    className="h-40 max-h-40 overflow-y-auto"
+                  />
+                </div>
+              </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
                       <Label className="text-zinc-400 text-xs">Unlock (optional)</Label>
-                      <Input type="datetime-local" value={moduleForm.unlock_date} onChange={(e) => setModuleForm(s => ({ ...s, unlock_date: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                      <Input type="datetime-local" value={moduleForm.unlock_date} onChange={(e) => setModuleForm(s => ({ ...s, unlock_date: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
                     </div>
                     <div>
                       <Label className="text-zinc-400 text-xs">Due (optional)</Label>
-                      <Input type="datetime-local" value={moduleForm.due_date} onChange={(e) => setModuleForm(s => ({ ...s, due_date: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                      <Input type="datetime-local" value={moduleForm.due_date} onChange={(e) => setModuleForm(s => ({ ...s, due_date: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <Input type="number" placeholder="Order number" value={moduleForm.order_number} onChange={(e) => setModuleForm(s => ({ ...s, order_number: Number(e.target.value) }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="number" placeholder="Order number" value={moduleForm.order_number} onChange={(e) => setModuleForm(s => ({ ...s, order_number: Number(e.target.value) }))} className="bg-zinc-900 border border-zinc-800" />
                     <Select value={moduleForm.prerequisite_module_id || "none"} onValueChange={(v) => setModuleForm(s => ({ ...s, prerequisite_module_id: v === "none" ? null : v }))}>
                       <SelectTrigger className="bg-zinc-900 border border-zinc-800"><SelectValue placeholder="Prerequisite" /></SelectTrigger>
                       <SelectContent className="bg-zinc-900 text-slate-100">
@@ -1181,8 +1311,8 @@ export default function AdminRoadmap() {
                   {/* badge creation (text based) */}
                   <div>
                     <Label className="text-zinc-400 text-xs">Create a text badge for this module (optional)</Label>
-                    <div className="flex gap-2 mt-2 items-center">
-                      <Input placeholder="Badge text (e.g. 'Completed Module 1')" value={moduleForm.badge_text} onChange={(e) => setModuleForm(s => ({ ...s, badge_text: e.target.value }))} className="bg-zinc-900 border border-zinc-800 text-emerald-100" />
+                    <div className="flex gap-2 mt-2">
+                      <Input placeholder="Badge text (e.g. 'Completed Module 1')" value={moduleForm.badge_text} onChange={(e) => setModuleForm(s => ({ ...s, badge_text: e.target.value }))} className="bg-zinc-900 border border-zinc-800" />
                       <div className="flex items-center gap-2">
                         <div className="w-12 h-10 rounded bg-amber-600 flex items-center justify-center text-xs font-semibold text-slate-100">{(moduleForm.badge_text || "").slice(0, 2).toUpperCase() || "TB"}</div>
                         <div className="text-xs text-zinc-400">Preview</div>
@@ -1191,8 +1321,8 @@ export default function AdminRoadmap() {
                   </div>
 
                   <div className="flex justify-end gap-2">
-                    <Button variant="outline" className="cursor-pointer" onClick={() => setShowModuleDialog(false)}>Cancel</Button>
-                    <Button className="bg-emerald-500 text-slate-100 cursor-pointer" onClick={saveModule}>{editingModule ? "Save" : "Create"}</Button>
+                    <Button variant="outline" className="text-black cursor-pointer" onClick={() => setShowModuleDialog(false)}>Cancel</Button>
+                    <Button className="bg-emerald-500 cursor-pointer hover:bg-emerald-400 text-slate-100" onClick={saveModule}>{editingModule ? "Save" : "Create"}</Button>
                   </div>
                 </div>
               </motion.div>

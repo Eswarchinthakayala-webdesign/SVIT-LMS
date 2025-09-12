@@ -71,6 +71,7 @@ import {
   ChartBar,
   Activity,
   DownloadCloud,
+  Eye,
 } from "lucide-react";
 
 import {
@@ -321,28 +322,93 @@ function AssignmentCard({ assignment, mySubmission, onOpenSubmit, onOpenQr }) {
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="ghost" className="cursor-pointer" onClick={() => onOpenSubmit(assignment)}><FileText className="w-4 h-4" /></Button>
+
+          {assignment.link_url && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="cursor-pointer flex items-center gap-1"
+              onClick={() => window.open(assignment.link_url, "_blank")}
+            >
+              <Eye className="w-4 h-4" /> View
+            </Button>
+          )}
+
+          {assignment.file_url && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="cursor-pointer flex items-center gap-1"
+              onClick={() => window.open(assignment.file_url, "_blank")}
+            >
+              <Download className="w-4 h-4" /> Download
+            </Button>
+          )}
         </div>
       </div>
 
-      {mySubmission && (
-        <div className="mt-3 flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-          <a className="text-emerald-300 underline cursor-pointer flex items-center gap-1" href={mySubmission.file_url} target="_blank" rel="noreferrer">
-            <ExternalLink className="w-4 h-4" />
-            Open link
-          </a>
+     {mySubmission && (
+  <div className="mt-3 space-y-3">
+    {/* Existing link + QR + button */}
+    <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+      <a
+        className="text-emerald-300 underline cursor-pointer flex items-center gap-1"
+        href={mySubmission.file_url}
+        target="_blank"
+        rel="noreferrer"
+      >
+        <ExternalLink className="w-4 h-4" />
+        Open link
+      </a>
 
-          <div className="p-1 bg-white rounded" aria-hidden>
-            <QRCode id={`qr-inline-${mySubmission.id}`} value={mySubmission.file_url} size={80} />
-          </div>
+      <div className="p-1 bg-white rounded" aria-hidden>
+        <QRCode
+          id={`qr-inline-${mySubmission.id}`}
+          value={mySubmission.file_url}
+          size={80}
+        />
+      </div>
 
-          <Button size="sm" variant="ghost" className="cursor-pointer flex items-center gap-1" onClick={() => onOpenQr(mySubmission, assignment)}>
-            <Download className="w-4 h-4" /> QR
-          </Button>
-        </div>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="cursor-pointer flex items-center gap-1"
+        onClick={() => onOpenQr(mySubmission, assignment)}
+      >
+        <Download className="w-4 h-4" /> QR
+      </Button>
+    </div>
+
+    {/* ✅ Grade & Feedback Section */}
+    <div className="text-sm text-zinc-300 space-y-1">
+      {mySubmission.grade != null || mySubmission.feedback ? (
+        <>
+          {mySubmission.grade != null && (
+            <div>
+              <span className="font-semibold text-emerald-400">Grade:</span>{" "}
+              {mySubmission.grade}
+            </div>
+          )}
+          {mySubmission.feedback && (
+            <div>
+              <span className="font-semibold text-emerald-400">Feedback:</span>{" "}
+              {mySubmission.feedback}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-zinc-500 italic">
+          Grade and feedback not yet provided by admin.
+        </p>
       )}
+    </div>
+  </div>
+)}
+
     </div>
   );
 }
+
 
 /* ---------------- Main StudentRoadmap component ---------------- */
 export default function StudentRoadmap() {
@@ -676,6 +742,12 @@ export default function StudentRoadmap() {
       return;
     }
     setSubmitting(true);
+    // ⛔ Due date lock: prevent submissions after assignment due_date
+    if (activeAssignment && activeAssignment.due_date && new Date() > new Date(activeAssignment.due_date)) {
+      toast.error("Deadline has passed. You cannot submit.");
+      setSubmitting(false);
+      return;
+    }
     try {
       const payload = {
         assignment_id: activeAssignment.id,
@@ -786,7 +858,7 @@ export default function StudentRoadmap() {
           </div>
           <div className="flex items-center gap-2">
             <Button variant="ghost" className="cursor-pointer" onClick={() => setShowAnalyticsPage(false)}>Back</Button>
-            <Button variant="outline" className="cursor-pointer" onClick={() => fetchCourseData(courseId)}>Refresh</Button>
+            <Button variant="outline" className="cursor-pointer text-black" onClick={() => fetchCourseData(courseId)}>Refresh</Button>
           </div>
         </div>
 
@@ -1140,9 +1212,9 @@ export default function StudentRoadmap() {
                   <div className="flex-1">
                     <div className="text-sm text-slate-100 mb-2">{qrSubmission.assignment.title}</div>
                     <div className="text-xs text-zinc-400 mb-3">Submitted: {qrSubmission.submission.submitted_at ? shortDate(qrSubmission.submission.submitted_at) : "—"}</div>
-                    <div className="flex gap-2">
-                      <Button className="bg-emerald-500 text-slate-900 cursor-pointer" onClick={() => window.open(qrSubmission.submission.file_url, "_blank")}><ExternalLink className="w-4 h-4 mr-2" />Visit</Button>
-                      <Button variant="outline" className="cursor-pointer" onClick={() => downloadQrPng("qr-modal-download", `submission-${qrSubmission.submission.id}_qr.png`)}><Download className="w-4 h-4 mr-2" />Download QR</Button>
+                    <div className="flex gap-2 flex-col">
+                      <Button className="bg-emerald-500 hover:bg-emerald-400 text-slate-900 cursor-pointer" onClick={() => window.open(qrSubmission.submission.file_url, "_blank")}><ExternalLink className="w-4 h-4 mr-2" />Visit</Button>
+                      <Button variant="outline" className=" text-black cursor-pointer" onClick={() => downloadQrPng("qr-modal-download", `submission-${qrSubmission.submission.id}_qr.png`)}><Download className="w-4 h-4 mr-2" />Download QR</Button>
                     </div>
                     <div className="text-xs text-zinc-400 mt-3">If the file is a share link, Visit will open it. Download QR saves the QR image (PNG).</div>
                   </div>

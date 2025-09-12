@@ -73,6 +73,9 @@ import "react-quill-new/dist/quill.snow.css";
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github.css"; // ✅ GitHub-like styling
 
 import {
   ResponsiveContainer,
@@ -1176,10 +1179,31 @@ function toggleTagInForm(tag) {
                   )}
                 </div>
 
-                <div className="mt-4">
-                  {previewTab === "details" ? (
-                    <div className="prose prose-invert text-sm max-w-full" dangerouslySetInnerHTML={{ __html: safeHtml(preview.description) }} />
-                  ) : (
+                <div className="mt-4 ">
+                 {previewTab === "details" ? (
+ <div className="prose prose-invert prose-pre:bg-zinc-900 prose-pre:text-slate-100 text-sm max-w-full break-words whitespace-pre-wrap overflow-y-auto max-h-60 pr-2 rounded-md">
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    rehypePlugins={[rehypeRaw, rehypeHighlight]}
+    components={{
+      code({ node, inline, className, children, ...props }) {
+        return !inline ? (
+          <pre className={`hljs ${className || ""}`}>
+            <code {...props}>{children}</code>
+          </pre>
+        ) : (
+          <code className={`hljs ${className || ""}`} {...props}>
+            {children}
+          </code>
+        );
+      },
+    }}
+  >
+    {preview.description || "*No description available*"}
+  </ReactMarkdown>
+</div>
+
+) : (
                     <div className="text-sm text-zinc-300">
                       <div><span className="text-zinc-400">Visibility:</span> <span className="text-emerald-300 font-medium">{preview.visibility}</span></div>
                       <div className="mt-2"><span className="text-zinc-400">Course:</span> <span className="text-slate-100">{preview.courses?.title || "—"}</span></div>

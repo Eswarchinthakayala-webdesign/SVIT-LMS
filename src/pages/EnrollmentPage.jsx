@@ -40,6 +40,7 @@ export default function StudentEnrollmentPage() {
   const [enrolled, setEnrolled] = useState(new Set());
   const [query, setQuery] = useState("");
   const [confirmAction, setConfirmAction] = useState(null); // { courseId, type }
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   /* ---- Fetch user + courses ---- */
@@ -72,28 +73,50 @@ export default function StudentEnrollmentPage() {
   /* ---- Handle Confirmed Action ---- */
   const handleConfirm = async () => {
     if (!confirmAction || !userId) return;
+    setLoading(true);
+
     const { courseId, type } = confirmAction;
+    let error;
 
     if (type === "enroll") {
-      const { error } = await supabase.from("enrollments").insert({
-        course_id: courseId,
-        student_id: userId,
-      });
+      const { data, error: insertError } = await supabase
+        .from("enrollments")
+        .insert({
+          course_id: courseId,
+          student_id: userId,
+        })
+        .select("id") // ✅ fetch enrollment_id
+        .single();
 
-      if (!error) {
-        toast.success("Enrolled successfully!");
+      error = insertError;
+
+      if (!error && data) {
+        const enrollmentId = data.id; // ✅ now we have enrollment_id
+
+        toast.success(
+          "Enrolled successfully! Your attendance starts from 0%."
+        );
+
         setEnrolled((prev) => new Set(prev).add(courseId));
+
+        // (Optional) If you want to insert first attendance record
+        // await supabase.from("attendance").insert({
+        //   enrollment_id: enrollmentId,
+        //   date: new Date().toISOString().split("T")[0],
+        //   status: "absent", // or "present" depending on logic
+        //   marked_by: userId,
+        // });
       } else {
-        toast.error("Failed to enroll. Try again.");
+        toast.error(error.message || "Failed to enroll. Try again.");
       }
     }
 
     if (type === "unenroll") {
-      const { error } = await supabase
+      ({ error } = await supabase
         .from("enrollments")
         .delete()
         .eq("course_id", courseId)
-        .eq("student_id", userId);
+        .eq("student_id", userId));
 
       if (!error) {
         toast.success("Unenrolled successfully!");
@@ -103,10 +126,11 @@ export default function StudentEnrollmentPage() {
           return updated;
         });
       } else {
-        toast.error("Failed to unenroll. Try again.");
+        toast.error(error.message || "Failed to unenroll. Try again.");
       }
     }
 
+    setLoading(false);
     setConfirmAction(null);
   };
 
@@ -187,6 +211,7 @@ export default function StudentEnrollmentPage() {
                     </span>
                     <Button
                       size="sm"
+                      disabled={loading}
                       className={`flex gap-1 ${
                         isEnrolled
                           ? "bg-red-500 hover:bg-red-600"
@@ -233,15 +258,21 @@ export default function StudentEnrollmentPage() {
                 ? "Confirm Enrollment"
                 : "Confirm Unenrollment"}
             </AlertDialogTitle>
-            <AlertDialogDescription >
+            <AlertDialogDescription>
               {confirmAction?.type === "enroll"
-                ? "Do you want to enroll in this course?"
-                : "Do you want to unenroll from this course?"}
+                ? "Do you want to enroll in this course? By enrolling, your attendance will start from 0%."
+                : "Do you want to unenroll from this course? Your past attendance records will be removed."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="cursor-pointer">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="cursor-pointer bg-emerald-400 text-black hover:bg-emerald-300" onClick={handleConfirm}>
+            <AlertDialogCancel className="cursor-pointer">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={loading}
+              className="cursor-pointer bg-emerald-400 text-black hover:bg-emerald-300"
+              onClick={handleConfirm}
+            >
               {confirmAction?.type === "enroll" ? "Enroll" : "Unenroll"}
             </AlertDialogAction>
           </AlertDialogFooter>

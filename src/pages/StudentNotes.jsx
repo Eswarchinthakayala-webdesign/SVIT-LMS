@@ -35,6 +35,11 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeRaw from "rehype-raw";
+import rehypeHighlight from "rehype-highlight";
+import "highlight.js/styles/github.css"; // ✅ GitHub-like styling
 
 import {
   BookOpen,
@@ -389,7 +394,7 @@ export default function StudentNotes() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg font-semibold text-emerald-300 truncate">Student Notes</h1>
-                  <p className="text-xs text-zinc-400 truncate">Browse teacher-provided notes & resources</p>
+                  <p className="text-xs sm:flex hidden text-zinc-400 truncate">Browse teacher-provided notes & resources</p>
                 </div>
               </div>
             </div>
@@ -758,7 +763,27 @@ export default function StudentNotes() {
 
               <div className="mt-4">
                 {previewTab === "details" ? (
-                  <div className="prose prose-invert text-sm max-w-full" dangerouslySetInnerHTML={{ __html: safeHtml(preview.description) }} />
+                  <div className="prose prose-invert prose-pre:bg-zinc-900 prose-pre:text-slate-100 text-sm max-w-full break-words whitespace-pre-wrap overflow-y-auto max-h-60 pr-2 rounded-md">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
+                      rehypePlugins={[rehypeRaw, rehypeHighlight]}
+                      components={{
+                        code({ node, inline, className, children, ...props }) {
+                          return !inline ? (
+                            <pre className={`hljs ${className || ""}`}>
+                              <code {...props}>{children}</code>
+                            </pre>
+                          ) : (
+                            <code className={`hljs ${className || ""}`} {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {preview.description || "*No description available*"}
+                    </ReactMarkdown>
+                  </div>
                 ) : (
                   <div className="text-sm text-zinc-300">
                     <div><span className="text-zinc-400">Visibility:</span> <span className="text-emerald-300 font-medium">{preview.visibility}</span></div>

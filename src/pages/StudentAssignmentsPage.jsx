@@ -1,4 +1,3 @@
-
 import React, {
   useEffect,
   useMemo,
@@ -63,6 +62,7 @@ import {
   ExternalLink,
   QrCode,
   Download,
+  FileText,
 } from "lucide-react";
 
 import QRCode from "react-qr-code";
@@ -147,10 +147,10 @@ export default function StudentAssignmentsPage() {
 
         const courseIds = enrolledCourses.map((e) => e.course_id);
 
-        // Assignments
+        // Assignments (include file_url)
         const { data: assignmentsData } = await supabase
           .from("assignments")
-          .select("id, title, description, due_date, course_id, courses(title)")
+          .select("id, title, description, due_date, course_id, file_url, courses(title)")
           .in("course_id", courseIds)
           .order("due_date", { ascending: true });
 
@@ -455,13 +455,34 @@ function AssignmentsCard({
       </CardHeader>
       <CardContent className="p-0">
         <ResponsiveTable
-          headers={["Title", "Course", "Due Date", "Status", "Action"]}
+          headers={["Title", "Course", "Due Date", "PDF", "Status", "Action"]}
           rows={filtered.map((a) => ({
             key: a.id,
             cells: [
               <div className="font-medium">{a.title}</div>,
               <div>{a.courses?.title || "—"}</div>,
               <div>{fmtDate(a.due_date)}</div>,
+              a.file_url ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={a.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-300 underline flex items-center gap-1"
+                  >
+                    <FileText className="h-4 w-4" /> View
+                  </a>
+                  <a
+                    href={a.file_url}
+                    download
+                    className="text-cyan-300 underline text-sm"
+                  >
+                    Download
+                  </a>
+                </div>
+              ) : (
+                <span className="text-zinc-500">No PDF</span>
+              ),
               a.submission ? (
                 <span className="flex items-center gap-1 text-emerald-400 text-sm">
                   <CheckCircle className="h-4 w-4" />
@@ -500,7 +521,7 @@ function AssignmentsCard({
                 )}
               </div>,
             ],
-            labels: ["Title", "Course", "Due", "Status", "Action"],
+            labels: ["Title", "Course", "Due", "PDF", "Status", "Action"],
           }))}
           emptyMessage="No assignments found"
         />
@@ -591,6 +612,7 @@ function SubmittedCard({
           headers={[
             "Title",
             "Course",
+            "Assignment PDF",
             "Link",
             "QR",
             "Submitted At",
@@ -602,6 +624,27 @@ function SubmittedCard({
             cells: [
               <div className="font-medium">{a.title}</div>,
               <div>{a.courses?.title || "—"}</div>,
+              a.file_url ? (
+                <div className="flex items-center gap-2">
+                  <a
+                    href={a.file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-emerald-300 underline flex items-center gap-1"
+                  >
+                    <FileText className="h-4 w-4" /> View
+                  </a>
+                  <a
+                    href={a.file_url}
+                    download
+                    className="text-cyan-300 underline text-sm"
+                  >
+                    Download
+                  </a>
+                </div>
+              ) : (
+                "—"
+              ),
               a.submission?.file_url ? (
                 <a
                   href={a.submission.file_url}
@@ -682,6 +725,7 @@ function SubmittedCard({
             labels: [
               "Title",
               "Course",
+              "Assignment PDF",
               "Link",
               "QR",
               "Submitted",

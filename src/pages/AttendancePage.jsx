@@ -114,20 +114,23 @@ export default function AttendancePage() {
           id,
           student_id,
           students (
+            id,
             full_name,
             email
           )
         `
         )
         .eq("course_id", selectedCourse);
+
       if (error) {
         console.error("Error fetching students", error);
         setStudents([]);
       } else {
         const formatted = data.map((e) => ({
-          id: e.student_id,
+          id: e.students?.id || e.student_id,
           full_name: e.students?.full_name || "Unknown",
           email: e.students?.email || "N/A",
+          enrollment_id: e.id,
         }));
         setStudents(formatted);
         setStats((prev) => ({ ...prev, totalStudents: formatted.length }));
@@ -153,7 +156,7 @@ export default function AttendancePage() {
   };
 
   /* ---- Mark attendance ---- */
-  const markAttendance = async (studentId, status) => {
+  const markAttendance = async (studentId, enrollmentId, status) => {
     const now = new Date();
     const key = getKey(selectedCourse, studentId);
     if (isDisabled(studentId)) {
@@ -169,6 +172,7 @@ export default function AttendancePage() {
       {
         course_id: selectedCourse,
         student_id: studentId,
+        enrollment_id: enrollmentId,
         status,
         marked_by: user?.id,
         date: now.toISOString().slice(0, 10),
@@ -308,7 +312,7 @@ export default function AttendancePage() {
                                 student={s}
                                 status={status}
                                 disabled={isDisabled(s.id)}
-                                onConfirm={() => markAttendance(s.id, status)}
+                                onConfirm={() => markAttendance(s.id, s.enrollment_id, status)}
                               />
                             ))}
                           </TableCell>
@@ -346,7 +350,7 @@ export default function AttendancePage() {
                             student={s}
                             status={status}
                             disabled={isDisabled(s.id)}
-                            onConfirm={() => markAttendance(s.id, status)}
+                            onConfirm={() => markAttendance(s.id, s.enrollment_id, status)}
                             compact
                           />
                         ))}
