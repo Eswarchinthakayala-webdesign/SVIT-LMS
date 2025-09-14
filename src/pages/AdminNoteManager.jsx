@@ -1071,7 +1071,7 @@ function toggleTagInForm(tag) {
               <Button size="sm" variant="ghost" className="cursor-pointer mr-2" onClick={() => fetchNotes(true)}><RefreshCw className="w-4 h-4 mr-" /> Refresh</Button>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center flex-col sm:flex-row gap-2">
               <Button className="cursor-pointer" size="sm" variant={bulkMode ? "secondary" : "ghost"} onClick={() => { setBulkMode((b) => !b); if (!bulkMode) setSelectedIds(new Set()); }}>
                 {bulkMode ? "Exit bulk" : "Bulk actions"}
               </Button>

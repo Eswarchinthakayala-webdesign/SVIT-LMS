@@ -279,7 +279,7 @@ export default function QuizGeneratorPage() {
                   value={selectedCourse}
                   onValueChange={(value) => setSelectedCourse(value)}
                 >
-                  <SelectTrigger className="bg-zinc-800 border border-zinc-700 w-full">
+                  <SelectTrigger className="bg-zinc-800 border text-emerald-300 border-zinc-700 w-full">
                     <SelectValue placeholder="Select a course" />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-900 text-white border-zinc-700">

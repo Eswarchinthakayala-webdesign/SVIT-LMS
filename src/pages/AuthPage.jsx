@@ -22,7 +22,7 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
-
+import { MonitorSmartphone, UserCheck, LayoutDashboard } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
 import { Button } from "@/components/ui/button";
@@ -270,22 +270,115 @@ export default function AuthPage() {
               <Card className="bg-gradient-to-br from-emerald-950/30 to-black/20 border-zinc-800/60 backdrop-blur-md">
                 <CardContent className="relative overflow-hidden">
                   <div className="flex whitespace-nowrap animate-scroll space-x-16">
-                    <span className="px-6 py-2 rounded-xl text-gray-300 bg-zinc-800/50 border border-zinc-700/40">
-                      Fast and secure course access
-                    </span>
-                    <span className="px-6 py-2 rounded-xl text-gray-300 bg-zinc-800/50 border border-zinc-700/40">
-                      Immersive galaxy-inspired interface
-                    </span>
-                    <span className="px-6 py-2 rounded-xl text-gray-300 bg-zinc-800/50 border border-zinc-700/40">
-                      Personalized learning dashboard
-                    </span>
+                    {/* Secure Course Access */}
+      <span className="flex items-center gap-2 px-6 py-2 rounded-xl text-gray-300 cursor-pointer
+        bg-zinc-800/50 backdrop-blur-md border border-zinc-700/40
+        hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+        <Lock className="h-4 w-4 text-emerald-400" />
+        Fast and secure course access – encrypted sessions keep your learning safe.
+      </span>
+
+      {/* Modern UI */}
+      <span className="flex items-center gap-2 px-6 py-2 rounded-xl text-gray-300 cursor-pointer
+        bg-zinc-800/50 backdrop-blur-md border border-zinc-700/40
+        hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+        <MonitorSmartphone className="h-4 w-4 text-emerald-400" />
+        Immersive galaxy-inspired interface – designed for focus and clarity.
+      </span>
+
+      {/* Authentication */}
+      <span className="flex items-center gap-2 px-6 py-2 rounded-xl text-gray-300 cursor-pointer
+        bg-zinc-800/50 backdrop-blur-md border border-zinc-700/40
+        hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+        <UserCheck className="h-4 w-4 text-emerald-400" />
+        Advanced authentication – students and admins get role-based access.
+      </span>
+
+      {/* Dashboard */}
+      <span className="flex items-center gap-2 px-6 py-2 rounded-xl text-gray-300 cursor-pointer
+        bg-zinc-800/50 backdrop-blur-md border border-zinc-700/40
+        hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+        <LayoutDashboard className="h-4 w-4 text-emerald-400" />
+        Personalized learning dashboard – view tasks, notes, and assignments at a glance.
+      </span>
+
+      {/* Analytics */}
+      <span className="flex items-center gap-2 px-6 py-2 rounded-xl text-gray-300 cursor-pointer
+        bg-zinc-800/50 backdrop-blur-md border border-zinc-700/40
+        hover:border-emerald-500/50 hover:text-emerald-400 transition-colors">
+        <BarChart3 className="h-4 w-4 text-emerald-400" />
+        Smart insights – track progress, performance, and learning milestones.
+      </span>
                   </div>
                 </CardContent>
               </Card>
+              <Card className="bg-black/50 border-zinc-800/50 backdrop-blur-md shadow-lg rounded-2xl">
+  <CardContent className="p-5 space-y-4">
+    {/* Header */}
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-xs uppercase tracking-wide text-zinc-400">Quick Overview</div>
+        <div className="text-sm font-semibold text-white">Your LMS at a glance</div>
+      </div>
+    </div>
+
+    {/* Info Grid */}
+    <div className="grid grid-cols-2 gap-3 text-sm text-zinc-300">
+      {/* Course Progress */}
+      <div className="flex flex-col gap-1 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-emerald-400" />
+          <span className="font-semibold">Course Progress</span>
+        </div>
+        <div className="text-xs text-zinc-400">3/5 modules completed</div>
+        <div className="w-full bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-emerald-500 rounded-full w-3/5"></div>
+        </div>
+      </div>
+
+      {/* Upcoming Deadlines */}
+      <div className="flex flex-col gap-1 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <FileText className="h-4 w-4 text-emerald-400" />
+          <span className="font-semibold">Upcoming</span>
+        </div>
+        <div className="text-xs text-zinc-400">Assignment 2 due in 3 days</div>
+        <div className="text-xs text-zinc-400">Quiz on Sep 20</div>
+      </div>
+
+      {/* Notifications */}
+      <div className="flex flex-col gap-1 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <LifeBuoy className="h-4 w-4 text-emerald-400" />
+          <span className="font-semibold">Notifications</span>
+        </div>
+        <div className="text-xs text-zinc-400">2 new announcements</div>
+        <div className="text-xs text-zinc-400">1 instructor reply</div>
+      </div>
+
+      {/* Enrolled Courses */}
+      <div className="flex flex-col gap-1 p-3 rounded-lg bg-zinc-900/60 border border-zinc-800/60">
+        <div className="flex items-center gap-2">
+          <GraduationCap className="h-4 w-4 text-emerald-400" />
+          <span className="font-semibold">My Courses</span>
+        </div>
+        <div className="text-xs text-zinc-400">Data Science Basics</div>
+        <div className="text-xs text-zinc-400">Web Development 101</div>
+      </div>
+    </div>
+
+    {/* Footer Note */}
+    <div className="text-xs text-zinc-500 pt-2 border-t border-zinc-800/40">
+      Stay updated with deadlines, announcements, and your learning journey – all in one glance.
+    </div>
+  </CardContent>
+</Card>
+
             </motion.div>
           </div>
         </div>
       </main>
+      <footer className="relative z-10 border-t border-zinc-900/80"> <div className="mx-auto max-w-6xl px-6 py-5 text-xs text-zinc-500 flex flex-col sm:flex-row gap-2 sm:gap-0 items-center justify-center"> <div className="flex items-center text-center justify-center text-emerald-200 gap-3"> <div className="text-sm">© {new Date().getFullYear()} SVIT LMS</div> </div> </div> </footer>
     </div>
   );
 }
